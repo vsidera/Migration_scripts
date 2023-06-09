@@ -28,7 +28,8 @@ def fetch_data_from_source():
             FROM customers
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
-            LIMIT 10;
+            OFFSET 4239
+            LIMIT 2000;
         """
         source_cursor.execute(query)
 
@@ -45,15 +46,16 @@ def fetch_data_from_source():
         print("Error while connecting to the source database:", error)
 
 def migrate_data_to_target(data):
-    # import pdb; pdb.set_trace()
     try:
         # Connect to the target database
         target_conn = psycopg2.connect(target_db_connection_string)
         target_cursor = target_conn.cursor()
 
+        # List to store contacts with unique constraint violations
+        duplicate_contacts = []
+
         # Iterate over the rows and insert data into the target database
         for row in data:
-
             country = row[3]  # country name
             country_id = None  # default value
 
@@ -62,10 +64,10 @@ def migrate_data_to_target(data):
             elif country == 'Tanzania':
                 country_id = 2
             elif country == 'Zambia':
-                country_id = 35    
+                country_id = 35
 
             gender = row[7]
-            gender = gender.upper()
+            gender = gender.upper() if gender else "MALE"
 
             query = """
                 INSERT INTO contacts (first_name, last_name, phone, country_id, salesperson_id, region, sub_region, gender, pos_longitude, pos_latitude, occupation)
@@ -82,16 +84,25 @@ def migrate_data_to_target(data):
                 gender,  # gender
                 row[8],  # longitude
                 row[9],  # latitude
-                "Other"  #occupation
+                "Other"  # occupation
             )
-            target_cursor.execute(query, values)
 
-        # Commit the changes and close the target database connection
-        target_conn.commit()
+            try:
+                target_cursor.execute(query, values)
+                target_conn.commit()
+            except psycopg2.IntegrityError as e:
+                target_conn.rollback()
+                duplicate_contacts.append(row)
+                print("Duplicate contact:", row)
+        
+        # Close the target database connection
         target_cursor.close()
         target_conn.close()
 
         print("Data migration completed successfully.")
+
+        # Return the list of duplicate contacts
+        return duplicate_contacts
 
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to the target database:", error)
@@ -100,4 +111,9 @@ def migrate_data_to_target(data):
 data = fetch_data_from_source()
 
 # Migrate the data to the target database
-migrate_data_to_target(data)
+duplicate_contacts = migrate_data_to_target(data)
+
+# Print the list of contacts with duplicate key violations
+print("Contacts with duplicate key violations:")
+for contact in duplicate_contacts:
+    print(contact)
