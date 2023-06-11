@@ -28,7 +28,7 @@ def fetch_data_from_source():
             FROM customers
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
-            LIMIT 2;
+            LIMIT 10;
                 """
         
         source_cursor.execute(query)
@@ -62,7 +62,7 @@ def convert_product(product):
 
 def migrate_data_to_target(data):
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     try:
         # Connect to the target database
         target_conn = psycopg2.connect(target_db_connection_string)
@@ -92,35 +92,38 @@ def migrate_data_to_target(data):
 
         # Insert each row into the target database
         for row in data:
+            row_list = list(row)
+
             phone_number = row[1]
             contact_id = phone_to_id.get(phone_number)
             if contact_id is not None:
-                row[0] = contact_id  # Replace the contact_id with the actual ID
+                row_list[0] = contact_id  # Replace the contact_id with the actual ID
             else:
                 print(f"No matching contact found for phone number: {phone_number}")
+                continue
             
             product = row[3]  # Get the product value from the row
             converted_product = convert_product(product)  # Convert the product
             
             if converted_product is not None:
-                row[3] = converted_product  # Replace the product with the converted value
+                row_list[3] = converted_product  # Replace the product with the converted value
             else:
                 print(f"Unknown product: {product}")
 
             payplan = row[4]  # Get the payplan value from the row
             converted_payplan = int(payplan)  # Convert the payplan to an integer
-            row[4] = converted_payplan  # Replace the payplan with the converted value
+            row_list[4] = converted_payplan  # Replace the payplan with the converted value
 
             status = row[7]
             capitalised_status = status.upper()
-            row[7] = capitalised_status
+            row_list[7] = capitalised_status
 
             delivery_date = row[6]
             if delivery_date == "Now":
                 delivery_date = row[8]
             else:
                 delivery_date = row[6]
-            row[6] = delivery_date
+            row_list[6] = delivery_date
 
             if row[2] == "Kenya":
                 external_id = row[5]
@@ -129,9 +132,9 @@ def migrate_data_to_target(data):
             else:
                 external_id = row[5]
 
-            row[2] = external_id  
+            row_list[2] = external_id  
             
-            target_cursor.execute(insert_query, row)
+            target_cursor.execute(insert_query, row_list)
 
         # Commit the transaction
         target_conn.commit()
