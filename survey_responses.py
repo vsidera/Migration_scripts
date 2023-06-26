@@ -15,17 +15,17 @@ def fetch_data_from_source():
         # Execute the query to fetch data from the source database
         query = """
             SELECT
-                customers.firstname,
-                customers.lastname,
                 customers.mobile_number,
-                customers.country,
-                replace(customers.custom_field ->> 'cf_agent_id'::text, '\u200b'::text, ' '::text) AS agent_id,
-                replace(customers.custom_field ->> 'cf_region'::text, '\u200b'::text, ' '::text) AS region,
-                replace(customers.custom_field ->> 'cf_sub_region'::text, '\u200b'::text, ' '::text) AS sub_region,
-                replace(customers.custom_field ->> 'cf_gender'::text, '\u200b'::text, ' '::text) AS gender,
-                replace(customers.custom_field ->> 'cf_pos_longitude'::text, '\u200b'::text, ' '::text) AS longitude,
-                replace(customers.custom_field ->> 'cf_pos_latitude'::text, '\u200b'::text, ' '::text) AS latitude,
-                replace(customers.custom_field ->> 'cf_customer_status'::text, '\u200b'::text, ' '::text) AS status
+                replace(customers.custom_field ->> 'cf_fuels_used'::text, '\u200b'::text, ' '::text) AS fuel_used,
+                replace(customers.custom_field ->> 'cf_primary_fuel'::text, '\u200b'::text, ' '::text) AS primary_fuel,
+                replace(customers.custom_field ->> 'cf_meals_cooked_per_day'::text, '\u200b'::text, ' '::text) AS meals_no,
+                replace(customers.custom_field ->> 'cf_any_improved_cook_stove'::text, '\u200b'::text, ' '::text) AS improved_cookstove,
+                replace(customers.custom_field ->> 'cf_does_the_customer_own_a_burn_product'::text, '\u200b'::text, ' '::text) AS burn_products,
+                replace(customers.custom_field ->> 'cf_household_size'::text, '\u200b'::text, ' '::text) AS household_size,
+                replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS education_level,
+                replace(customers.custom_field ->> 'cf_occupation_status'::text, '\u200b'::text, ' '::text) AS employment_status,
+                replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS occupation,
+                replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS education_level
             FROM customers
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC

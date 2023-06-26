@@ -30,7 +30,7 @@ def fetch_data_from_source():
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
             OFFSET 0
-            LIMIT 6000;
+            LIMIT 5;
         """
         source_cursor.execute(query)
 
@@ -56,7 +56,7 @@ def migrate_data_to_target(data):
         # List to store contacts with unique constraint violations
         duplicate_contacts = []
 
-        # Iterate over the rows and insert or update data in the target database
+        # Iterate over the rows and insert data into the target database
         for row in data:
             country = row[3]  # country name
             country_id = None  # default value
@@ -72,31 +72,28 @@ def migrate_data_to_target(data):
             gender = gender.upper() if gender else "MALE"
 
             status = row[10]
-            if status == 'Customer':
-                capitalised_status = 'CUSTOMER'
+            if status is not None and status=="Customer" or "Pending":
+                capitalised_status = status.upper()
             else:
-                capitalised_status = 'ELIGIBLE'
+                capitalised_status = 'Eligible'
 
             query = """
-                INSERT INTO contacts (first_name, last_name, phone, country_id, salesperson_id, region, sub_region, gender, pos_longitude, pos_latitude, occupation, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (phone) DO UPDATE
-                SET status = excluded.status;
+                UPDATE contacts
+                SET status = %s
+                WHERE phone = %s;
             """
+
             values = (
-                row[0],  # firstname
-                row[1],  # lastname
-                row[2],  # mobile_number
-                country_id,  # country
-                row[4],  # agent_id
-                row[5],  # region
-                row[6],  # sub_region
-                gender,  # gender
-                row[8],  # longitude
-                row[9],  # latitude
-                "Other",  # occupation
-                capitalised_status
+                capitalised_status,
+                row[2]  # mobile_number
             )
+
+            try:
+                target_cursor.execute(query, values)
+                target_conn.commit()
+            except psycopg2.Error as e:
+                target_conn.rollback()
+                print("Error updating contact:", row, e)
 
             try:
                 target_cursor.execute(query, values)
@@ -123,7 +120,6 @@ data = fetch_data_from_source()
 
 # Migrate the data to the target database
 duplicate_contacts = migrate_data_to_target(data)
-
 
 # Print the list of contacts with duplicate key violations
 # print("Contacts with duplicate key violations:")

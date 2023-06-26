@@ -1,3 +1,4 @@
+import datetime
 import psycopg2
 
 # Source database connection string
@@ -23,12 +24,14 @@ def fetch_data_from_source():
                 replace(customers.custom_field ->> 'cf_national_id'::text, '\u200b'::text, ' '::text) AS national_id,
                 replace(customers.custom_field ->> 'cf_delivery_schedule'::text, '\u200b'::text, ' '::text) AS delivery_date,
                 replace(customers.custom_field ->> 'cf_customer_status'::text, '\u200b'::text, ' '::text) AS status,
-                customers.created_at
+                customers.created_at,
+                replace(customers.custom_field ->> 'cf_serial_number'::text, '\u200b'::text, ' '::text) AS serial_number
 
             FROM customers
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
-            LIMIT 10;
+            OFFSET 0
+            LIMIT 6000;
                 """
         
         source_cursor.execute(query)
@@ -56,12 +59,13 @@ def convert_product(product):
         return 4
     elif product == 'Induction Cooker':
         return 5
+    elif product == 'Electric Pressure Cooker':
+        return 6
     else:
-        return None        
+        return 7        
 
 
 def migrate_data_to_target(data):
-
     # import pdb; pdb.set_trace()
     try:
         # Connect to the target database
@@ -83,10 +87,11 @@ def migrate_data_to_target(data):
                 external_id,
                 payplan,
                 date,
-                status
+                status,
+                serial_number
             )
             VALUES (
-                %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s
             );
         """
 
@@ -101,29 +106,44 @@ def migrate_data_to_target(data):
             else:
                 print(f"No matching contact found for phone number: {phone_number}")
                 continue
-            
+
             product = row[3]  # Get the product value from the row
             converted_product = convert_product(product)  # Convert the product
-            
             if converted_product is not None:
-                row_list[3] = converted_product  # Replace the product with the converted value
+                row_list[1] = converted_product  # Replace the product with the converted value
             else:
                 print(f"Unknown product: {product}")
+                continue
 
             payplan = row[4]  # Get the payplan value from the row
-            converted_payplan = int(payplan)  # Convert the payplan to an integer
-            row_list[4] = converted_payplan  # Replace the payplan with the converted value
+            if payplan is not None:
+                converted_payplan = int(payplan)  # Convert the payplan to an integer
+                row_list[3] = converted_payplan  # Replace the payplan with the converted value
+            else:
+                row_list[3] = 100
 
             status = row[7]
-            capitalised_status = status.upper()
-            row_list[7] = capitalised_status
+            if status is not None:
+                capitalised_status = status.upper()
+            else:
+                capitalised_status = 'No Status'
+            row_list[5] = capitalised_status
 
             delivery_date = row[6]
             if delivery_date == "Now":
                 delivery_date = row[8]
             else:
-                delivery_date = row[6]
-            row_list[6] = delivery_date
+                if delivery_date is None:
+                    delivery_date = datetime.datetime.now()  # Set delivery date to current timestamp
+                else:
+                    try:
+                        if isinstance(delivery_date, str):
+                            delivery_date = datetime.datetime.strptime(delivery_date, "%Y-%m-%d %H:%M:%S")  # Parse the delivery date
+                    except ValueError:
+                        delivery_date = datetime.datetime.now()  # Set delivery date to current timestamp
+            if isinstance(delivery_date, datetime.datetime):
+                row_list[4] = delivery_date.strftime("%Y-%m-%d %H:%M:%S")
+
 
             if row[2] == "Kenya":
                 external_id = row[5]
@@ -132,9 +152,22 @@ def migrate_data_to_target(data):
             else:
                 external_id = row[5]
 
-            row_list[2] = external_id  
-            
-            target_cursor.execute(insert_query, row_list)
+            row_list[2] = external_id
+
+            try:
+                target_cursor.execute(insert_query, (
+                    row_list[0],
+                    row_list[1],
+                    row_list[2],
+                    row_list[3],
+                    row_list[4],
+                    row_list[5],
+                    row_list[9]
+                ))
+                target_conn.commit()
+            except psycopg2.IntegrityError as e:
+                print("Skipping account creation due to duplicate key violation:", e)
+                target_conn.rollback()  # Rollback the transaction
 
         # Commit the transaction
         target_conn.commit()
