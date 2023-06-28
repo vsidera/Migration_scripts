@@ -24,10 +24,9 @@ def fetch_data_from_source():
                 replace(customers.custom_field ->> 'cf_household_size'::text, '\u200b'::text, ' '::text) AS household_size,
                 replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS education_level,
                 replace(customers.custom_field ->> 'cf_occupation_status'::text, '\u200b'::text, ' '::text) AS employment_status,
-                replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS occupation,
-                replace(customers.custom_field ->> 'cf_education'::text, '\u200b'::text, ' '::text) AS education_level
+                replace(customers.custom_field ->> 'cf_occupation'::text, '\u200b'::text, ' '::text) AS occupation,
+                replace(customers.custom_field ->> 'cf_likelihood_to_purchase_a_product'::text, '\u200b'::text, ' '::text) AS likely_to_purchase
             FROM customers
-            WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
             OFFSET 0
             LIMIT 6000;
