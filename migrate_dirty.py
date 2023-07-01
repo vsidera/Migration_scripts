@@ -49,7 +49,6 @@ def fetch_accounts_from_crm():
 
 
 def fetch_figures_from_fineract(data):
-    
     try:
         # Connect to the fineract database
         target_conn = psycopg2.connect(fineract_db_connection_string)
@@ -95,7 +94,7 @@ def fetch_figures_from_fineract(data):
         print("Error while connecting to the target database:", error)
 
 def calculate_expiry_wallet(modified_data):
-    
+
     results = []
 
     for row in modified_data:
@@ -139,23 +138,18 @@ def calculate_expiry_wallet(modified_data):
         deficit = float(amount_paid)-amt_to_be_on_track
 
         daily_rate = instalment/(repay_every*7)
-        daily_rate = round(daily_rate, 2)
 
         if deficit <= 0:
-
-            expiry_date = datetime.strptime(default_expiry_date, "%Y-%m-%d")
-            expiry_date = expiry_date.isoformat()
+            expiry_date = default_expiry_date
             balance = 0
         else :
             expiry_date = (datetime.strptime(default_expiry_date, '%Y-%m-%d') + timedelta(days=int(math.floor(amount_paid - decimal.Decimal(amt_to_be_on_track)) / daily_rate))).date()
-            expiry_date = expiry_date.isoformat() + 'T00:00:00'
-            
+
             amount_paid = float(amount_paid)
 
             daily_rate = float(daily_rate)
 
             balance = (amount_paid - amt_to_be_on_track) % daily_rate
-            balance = round(balance, 0)
 
         record = {
             'phone': phone,
@@ -172,8 +166,11 @@ def calculate_expiry_wallet(modified_data):
     return results
 
 def post_to_paygo_db(paygo_data):
-
+    # import pdb; pdb.set_trace()
     try:
+        source_conn = psycopg2.connect(paygo_db_connection_string)
+        source_cursor = source_conn.cursor()
+
         for data in paygo_data:
             account_no = data['account_no']
             expiry_date = data['expiry_date']
@@ -185,6 +182,49 @@ def post_to_paygo_db(paygo_data):
             first_name = data['first_name']
             last_name = data['last_name']
 
+            
+
+            try:
+                payload = {
+                    {
+                        "serialNo": serial_no,
+                        "dailyRate": daily_rate,
+                        "expiryDate": expiry_date
+                    }
+                }
+                url = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/device"
+                response = requests.post(url, json=payload)
+                if response.status_code == 200:
+                    print("Device created successfully!")
+                    payload = {
+                        "deviceId": response.data.id,
+                        "accountNo": account_no,
+                        "balance": balance
+                    }
+                    url = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/device"
+                    response = requests.post(url, json=payload)
+
+                else:
+                    print("Failed to send SMS. Status code:", response.status_code)
+            except requests.exceptions.RequestException as error:
+                print("Error creating device", error)
+
+            device_query = "INSERT INTO device (serial_no, expiry_date, daily_rate) VALUES (%s, %s, %s) RETURNING id"
+            device_values = (serial_no, expiry_date, daily_rate)
+            source_cursor.execute(device_query, device_values)
+
+            device_id = source_cursor.fetchone()[0]  # Retrieve the ID of the inserted record
+
+            import pdb; pdb.set_trace()
+
+
+
+            wallet_query = "INSERT INTO wallet (device_id, account_no, balance) VALUES (%s, %s, %s)"
+            wallet_values = (device_id, balance, account_no)
+            source_cursor.execute(wallet_query, wallet_values)
+
+            source_conn.commit(phone,country_code)
+
             sms_data = {
                 "country_code": country_code,
                 "phone": phone,
@@ -194,43 +234,17 @@ def post_to_paygo_db(paygo_data):
                 "last_name": last_name,
                 "expiry_date": expiry_date
             }
-
-            url_device = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/device"
-
-            url_wallet = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/wallet"
-
-            try:
-                payload = {
-                        "serialNo": serial_no,
-                        "dailyRate": str(daily_rate),
-                        "expiryDate": expiry_date
-                      }
-                # import pdb; pdb.set_trace()
-                response = requests.post(url_device, json=payload)
-                
-                if response.status_code == 200:
-                    device_id = response.json()["id"]
-                    print(f"Device created successfully! Device ID: {device_id}")
-                    payload = {
-                        "deviceId": device_id,
-                        "accountNo": account_no,
-                        "balance": str(balance)
-                    }
-                    response = requests.post(url_wallet, json=payload)
-
-                    if response.status_code == 200:
-                        print(f"Wallet created successfully for DEVICE: {device_id}")
-                        send_expiry_sms(sms_data)
-                    else:
-                        print(f"FAILED to create wallet for DEVICE: {device_id}")   
-
-                else:
-                    print("Failed to create device", response.status_code)
-            except requests.exceptions.RequestException as error:
-                print("Error creating device", error)
+            send_expiry_sms(sms_data)
+            print("Data inserted successfully into the device table.")
 
     except (Exception, psycopg2.Error) as error:
-        print("Error while posting to the paygo db", error)
+        print("Error while connecting to the source database:", error)
+
+    finally:
+        if source_cursor:
+            source_cursor.close()
+        if source_conn:
+            source_conn.close()
 
 def send_expiry_sms(sms_data):
     
@@ -246,7 +260,7 @@ def send_expiry_sms(sms_data):
 
     payload = {
         "customer_id": "12345",
-        "phone_number": "0711438911",
+        "phone_number": phone,
         "text_message": text_message,
         "callback_url": "",
         "country_code": country_code,
@@ -265,6 +279,12 @@ def send_expiry_sms(sms_data):
     except requests.exceptions.RequestException as error:
         print("Error sending SMS:", error)
 
+
+
+
+
+
+    # print(paygo_data)
 
 data = fetch_accounts_from_crm()
 

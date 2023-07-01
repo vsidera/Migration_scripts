@@ -27,10 +27,12 @@ def fetch_data_from_source():
                 replace(customers.custom_field ->> 'cf_occupation'::text, '\u200b'::text, ' '::text) AS occupation,
                 replace(customers.custom_field ->> 'cf_likelihood_to_purchase_a_product'::text, '\u200b'::text, ' '::text) AS likely_to_purchase
             FROM customers
+            WHERE customers.mobile_number IS NOT NULL
             ORDER BY customers.created_at DESC
             OFFSET 0
-            LIMIT 6000;
+            LIMIT 100;
         """
+
         source_cursor.execute(query)
 
         # Fetch all the rows from the query result
@@ -45,86 +47,54 @@ def fetch_data_from_source():
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to the source database:", error)
 
-def migrate_data_to_target(data):
-    # import pdb; pdb.set_trace()
+def map_responses_to_contact(data):
     try:
         # Connect to the target database
         target_conn = psycopg2.connect(target_db_connection_string)
         target_cursor = target_conn.cursor()
 
-        # List to store contacts with unique constraint violations
-        duplicate_contacts = []
-
-        # Iterate over the rows and insert or update data in the target database
+        # Iterate over the data and map survey responses to customers in the target database
         for row in data:
-            country = row[3]  # country name
-            country_id = None  # default value
+            print("ROW!!!!!!!!!!!", row)
+            mobile_number = row[0]  # Accessing mobile_number from index 0
 
-            if country == 'Kenya':
-                country_id = 1
-            elif country == 'Tanzania':
-                country_id = 2
-            elif country == 'Zambia':
-                country_id = 35
+            # Fetch the customer ID from the target database based on the mobile number
+            query = f"SELECT id FROM contacts WHERE phone = '{mobile_number}'"
+            target_cursor.execute(query)
+            result = target_cursor.fetchone()
 
-            gender = row[7]
-            gender = gender.upper() if gender else "MALE"
+            if result is not None:
+                customer_id = result[0]
 
-            status = row[10]
-            if status == 'Customer':
-                capitalised_status = 'CUSTOMER'
+                # Append the customer_id to the respective row
+                row += (customer_id,)
+
+                import pdb; pdb.set_trace()
             else:
-                capitalised_status = 'ELIGIBLE'
+                print(f"No customer found for mobile number: {mobile_number}")
 
-            query = """
-                INSERT INTO contacts (first_name, last_name, phone, country_id, salesperson_id, region, sub_region, gender, pos_longitude, pos_latitude, occupation, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (phone) DO UPDATE
-                SET status = excluded.status;
-            """
-            values = (
-                row[0],  # firstname
-                row[1],  # lastname
-                row[2],  # mobile_number
-                country_id,  # country
-                row[4],  # agent_id
-                row[5],  # region
-                row[6],  # sub_region
-                gender,  # gender
-                row[8],  # longitude
-                row[9],  # latitude
-                "Other",  # occupation
-                capitalised_status
-            )
+            
+            # Rest of the code...
 
-            try:
-                target_cursor.execute(query, values)
-                target_conn.commit()
-            except psycopg2.IntegrityError as e:
-                target_conn.rollback()
-                duplicate_contacts.append(row)
-                print("Duplicate contact:", row)
-        
-        # Close the target database connection
-        target_cursor.close()
-        target_conn.close()
-
-        print("Data migration completed successfully.")
-
-        # Return the list of duplicate contacts
-        return duplicate_contacts
+        # Commit the changes to the target database
+        target_conn.commit()
 
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to the target database:", error)
 
+    finally:
+        if target_cursor:
+            target_cursor.close()
+        if target_conn:
+            target_conn.close()
+
+
+
+
 # Fetch data from the source database
 data = fetch_data_from_source()
 
-# Migrate the data to the target database
-duplicate_contacts = migrate_data_to_target(data)
+map_responses_to_contact(data)
 
-
-# Print the list of contacts with duplicate key violations
-# print("Contacts with duplicate key violations:")
 # for contact in duplicate_contacts:
 #     print(contact)
