@@ -27,11 +27,11 @@ def fetch_accounts_from_crm():
                 phone,
                 first_name,
                 last_name
-            FROM contact_accounts_product_v
-            WHERE serial_number IS NOT NULL AND serial_number <> ''
+            FROM contact_accounts_product_payplan_v
+            WHERE serial_number IS NOT NULL AND serial_number != ' ' AND payplan='131'
             ORDER BY created_at DESC
             OFFSET 0
-            LIMIT 10;
+            LIMIT 6000;
         """
         source_cursor.execute(query)
 
@@ -73,7 +73,7 @@ def fetch_figures_from_fineract(data):
                     instalment_amount_in_multiples_of,
                     total_overdue_derived
                 FROM mloan_product_view
-                WHERE external_id = %s;
+                WHERE external_id = %s AND loan_status_id = 300;
             """
             target_cursor.execute(query, (external_id,))
 
@@ -96,6 +96,10 @@ def fetch_figures_from_fineract(data):
         print("Error while connecting to the target database:", error)
 
 def calculate_expiry_wallet(modified_data):
+
+    print("MODIFIED DATA!!!!!!!!",modified_data)
+
+    import pdb; pdb.set_trace()
     
     results = []
 
