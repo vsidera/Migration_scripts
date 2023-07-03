@@ -70,7 +70,8 @@ def fetch_figures_from_fineract(data):
                     fee_charges_charged_derived,
                     principal_amount,
                     total_repayment_derived,
-                    instalment_amount_in_multiples_of
+                    instalment_amount_in_multiples_of,
+                    total_overdue_derived
                 FROM mloan_product_view
                 WHERE external_id = %s;
             """
@@ -114,6 +115,7 @@ def calculate_expiry_wallet(modified_data):
         principal = row[11]
         total_paid = row[12]
         instalment = row[13]
+        arrears = row[14]
 
         if country_id == 1:
             country_code = "+254"
@@ -166,7 +168,8 @@ def calculate_expiry_wallet(modified_data):
             'country_code': country_code,
             'daily_rate': daily_rate,
             'first_name': first_name,
-            'last_name': last_name
+            'last_name': last_name,
+            'arrears': arrears
         }
         results.append(record)
     return results
@@ -184,6 +187,7 @@ def post_to_paygo_db(paygo_data):
             daily_rate = data['daily_rate']
             first_name = data['first_name']
             last_name = data['last_name']
+            arrears = data['arrears']
 
             sms_data = {
                 "country_code": country_code,
@@ -192,7 +196,8 @@ def post_to_paygo_db(paygo_data):
                 "account_no": account_no,
                 "first_name": first_name,
                 "last_name": last_name,
-                "expiry_date": expiry_date
+                "expiry_date": expiry_date,
+                "arrears": arrears
             }
 
             url_device = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/device"
@@ -241,8 +246,9 @@ def send_expiry_sms(sms_data):
     last_name = sms_data.get('last_name')
     expiry_date = sms_data.get('expiry_date')
     account_no = sms_data.get('account_no')
+    arrears = sms_data.get('total_overdue_derived') or 0
 
-    text_message = f"Dear {first_name}{last_name}, your loan of <Arrears amount> is due on {expiry_date} & your cooker will be locked. To avoid being locked, pay as little as {daily_rate} daily to M-PESA: Paybill 313348 Acc. No: {account_no}."
+    text_message = f"Dear {first_name}{last_name}, your loan of {arrears} is due on {expiry_date} & your cooker will be locked. To avoid being locked, pay as little as {daily_rate} daily to M-PESA: Paybill 313348 Acc. No: {account_no}."
 
     payload = {
         "customer_id": "12345",
