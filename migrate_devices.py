@@ -129,7 +129,7 @@ def calculate_expiry_wallet(modified_data):
         else:
             country_code = "+260"
         
-        default_expiry_date = '2022-07-10'
+        default_expiry_date = '2023-07-11'
 
         today = datetime.now().date()
         # date_disbursed = datetime.strptime(disbursed_on_date, '%Y-%m-%d').date()
