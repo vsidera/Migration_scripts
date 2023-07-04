@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import math
 import decimal
 import requests
+import openpyxl
 
 # crm database connection string
 crm_db_connection_string = "postgres://salesapp:gx40E2t5WcBq@burn-ecore-production.cluster-cbxsbosv8vtr.eu-west-1.rds.amazonaws.com:5432/customerdb?sslmode=require"
@@ -31,7 +32,7 @@ def fetch_accounts_from_crm():
             WHERE serial_number IS NOT NULL AND serial_number != ' ' AND payplan='131'
             ORDER BY created_at DESC
             OFFSET 0
-            LIMIT 6000;
+            LIMIT 250;
         """
         source_cursor.execute(query)
 
@@ -93,13 +94,13 @@ def fetch_figures_from_fineract(data):
         return modified_data 
 
     except (Exception, psycopg2.Error) as error:
-        print("Error while connecting to the target database:", error)
+        print("Error while connecting to the target database:", error)        
 
 def calculate_expiry_wallet(modified_data):
 
-    print("MODIFIED DATA!!!!!!!!",modified_data)
+    # print("MODIFIED DATA!!!!!!!!",modified_data)
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     
     results = []
 
@@ -152,6 +153,7 @@ def calculate_expiry_wallet(modified_data):
             expiry_date = datetime.strptime(default_expiry_date, "%Y-%m-%d")
             expiry_date = expiry_date.isoformat()
             balance = 0
+            late = True
         else :
             expiry_date = (datetime.strptime(default_expiry_date, '%Y-%m-%d') + timedelta(days=int(math.floor(amount_paid - decimal.Decimal(amt_to_be_on_track)) / daily_rate))).date()
             expiry_date = expiry_date.isoformat() + 'T00:00:00'
@@ -162,6 +164,7 @@ def calculate_expiry_wallet(modified_data):
 
             balance = (amount_paid - amt_to_be_on_track) % daily_rate
             balance = round(balance, 0)
+            late = False
 
         record = {
             'phone': phone,
@@ -173,12 +176,54 @@ def calculate_expiry_wallet(modified_data):
             'daily_rate': daily_rate,
             'first_name': first_name,
             'last_name': last_name,
-            'arrears': arrears
+            'arrears': arrears,
+            'late': late
         }
         results.append(record)
     return results
 
+
+
+def get_excel(results):
+    # Create a new Excel workbook
+    workbook = openpyxl.Workbook()
+
+    # Select the active worksheet
+    worksheet = workbook.active
+
+    # Write the headers
+    headers = [
+        'Phone', 'Expiry Date', 'Balance', 'Account No', 'Serial No',
+        'Country Code', 'Daily Rate', 'First Name', 'Last Name', 'Arrears'
+    ]
+    worksheet.append(headers)
+
+    # Write the data
+    for result in results:
+        row = [
+            result['phone'],
+            result['expiry_date'],
+            result['balance'],
+            result['account_no'],
+            result['serial_no'],
+            result['country_code'],
+            result['daily_rate'],
+            result['first_name'],
+            result['last_name'],
+            result['arrears'],
+            result['late'],
+        ]
+        worksheet.append(row)
+
+    # Save the workbook
+    workbook.save('output.xlsx')
+
+
 def post_to_paygo_db(paygo_data):
+
+    print("PAYGO DATA IS!!!!!!!!!!",paygo_data)
+
+    # import pdb; pdb.set_trace()
 
     try:
         for data in paygo_data:
@@ -192,6 +237,7 @@ def post_to_paygo_db(paygo_data):
             first_name = data['first_name']
             last_name = data['last_name']
             arrears = data['arrears']
+            late = data['late']
 
             sms_data = {
                 "country_code": country_code,
@@ -229,7 +275,9 @@ def post_to_paygo_db(paygo_data):
 
                     if response.status_code == 200:
                         print(f"Wallet created successfully for DEVICE: {device_id}")
-                        send_expiry_sms(sms_data)
+                        if late:
+                            print(f"LATE Customer, sending SMS")
+                            send_expiry_sms(sms_data)
                     else:
                         print(f"FAILED to create wallet for DEVICE: {device_id}")   
 
@@ -250,9 +298,11 @@ def send_expiry_sms(sms_data):
     last_name = sms_data.get('last_name')
     expiry_date = sms_data.get('expiry_date')
     account_no = sms_data.get('account_no')
-    arrears = sms_data.get('total_overdue_derived') or 0
+    arrears = sms_data.get('arrears') or 0
 
-    text_message = f"Dear {first_name}{last_name}, your loan of {arrears} is due on {expiry_date} & your cooker will be locked. To avoid being locked, pay as little as {daily_rate} daily to M-PESA: Paybill 313348 Acc. No: {account_no}."
+    arrears = round(arrears, 2)
+
+    text_message = f"Dear {first_name} {last_name}, your loan of {arrears} is due on {expiry_date} & your cooker will be locked. To avoid being locked, pay as little as 29/= daily to M-PESA: Paybill 313348 Acc. No: {account_no}."
 
     payload = {
         "customer_id": "12345",
@@ -281,6 +331,8 @@ data = fetch_accounts_from_crm()
 modified_data = fetch_figures_from_fineract(data)
 
 paygo_data = calculate_expiry_wallet(modified_data)
+
+# get_excel(paygo_data)
 
 post_to_paygo_db(paygo_data)
 
