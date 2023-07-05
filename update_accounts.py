@@ -18,13 +18,6 @@ def fetch_data_from_source():
             SELECT
                 customers.id,
                 customers.mobile_number,
-                customers.country,
-                replace(customers.custom_field ->> 'cf_product'::text, '\u200b'::text, ' '::text) AS product,
-                replace(customers.custom_field ->> 'cf_payplan_id'::text, '\u200b'::text, ' '::text) AS payplan,
-                replace(customers.custom_field ->> 'cf_national_id'::text, '\u200b'::text, ' '::text) AS national_id,
-                replace(customers.custom_field ->> 'cf_delivery_schedule'::text, '\u200b'::text, ' '::text) AS delivery_date,
-                replace(customers.custom_field ->> 'cf_customer_status'::text, '\u200b'::text, ' '::text) AS status,
-                customers.created_at,
                 replace(customers.custom_field ->> 'cf_serial_number'::text, '\u200b'::text, ' '::text) AS serial_number
 
             FROM customers
@@ -48,22 +41,6 @@ def fetch_data_from_source():
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to the source database:", error)
 
-def convert_product(product):
-    if product == 'Jikokoa Classic':
-        return 1
-    elif product == 'Jikokoa Extra':
-        return 2
-    elif product == 'Jikokoa Pro':
-        return 3
-    elif product == 'Ecoa Wood':
-        return 4
-    elif product == 'Induction Cooker':
-        return 5
-    elif product == 'Electric Pressure Cooker':
-        return 6
-    else:
-        return 7        
-
 
 def migrate_data_to_target(data):
     # import pdb; pdb.set_trace()
@@ -82,12 +59,6 @@ def migrate_data_to_target(data):
         # Prepare the INSERT statement for the target database
         insert_query = """
             INSERT INTO accounts (
-                contact_id,
-                product_id,
-                external_id,
-                payplan,
-                date,
-                status,
                 serial_number
             )
             VALUES (

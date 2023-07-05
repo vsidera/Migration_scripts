@@ -30,7 +30,7 @@ def fetch_data_from_source():
             WHERE customers.country IN ('Kenya', 'Tanzania', 'Zambia')
             ORDER BY customers.created_at DESC
             OFFSET 0
-            LIMIT 6000;
+            LIMIT 500;
         """
         source_cursor.execute(query)
 
@@ -126,6 +126,6 @@ duplicate_contacts = migrate_data_to_target(data)
 
 
 # Print the list of contacts with duplicate key violations
-# print("Contacts with duplicate key violations:")
-# for contact in duplicate_contacts:
-#     print(contact)
+print("Contacts with duplicate key violations:")
+for contact in duplicate_contacts:
+    print(contact)

@@ -32,7 +32,7 @@ def fetch_accounts_from_crm():
             WHERE serial_number IS NOT NULL AND serial_number != ' ' AND payplan='131'
             ORDER BY created_at DESC
             OFFSET 0
-            LIMIT 250;
+            LIMIT 2;
         """
         source_cursor.execute(query)
 
@@ -250,9 +250,9 @@ def post_to_paygo_db(paygo_data):
                 "arrears": arrears
             }
 
-            url_device = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/device"
+            url_device = "https://mudbjzfb6r.eu-west-1.awsapprunner.com/api/device"
 
-            url_wallet = "https://itpnyugcfz.eu-west-1.awsapprunner.com/api/wallet"
+            url_wallet = "https://mudbjzfb6r.eu-west-1.awsapprunner.com/api/wallet"
 
             try:
                 payload = {
@@ -278,6 +278,9 @@ def post_to_paygo_db(paygo_data):
                         if late:
                             print(f"LATE Customer, sending SMS")
                             send_expiry_sms(sms_data)
+                        else:
+                            print(f"LATE Customer, sending SMS")
+                            send_expiry_sms_early(sms_data)   
                     else:
                         print(f"FAILED to create wallet for DEVICE: {device_id}")   
 
@@ -288,6 +291,42 @@ def post_to_paygo_db(paygo_data):
 
     except (Exception, psycopg2.Error) as error:
         print("Error while posting to the paygo db", error)
+
+def send_expiry_sms_early(sms_data):
+    
+    phone = sms_data.get('phone')
+    daily_rate = sms_data.get('daily_rate')
+    country_code = sms_data.get('country_code')
+    first_name = sms_data.get('first_name')
+    last_name = sms_data.get('last_name')
+    expiry_date = sms_data.get('expiry_date')
+    account_no = sms_data.get('account_no')
+    arrears = sms_data.get('arrears') or 0
+
+    arrears = round(arrears, 2)
+
+    text_message = f"Dear {first_name} {last_name}.Thank you for making your payments on time. Going forward, all delayed payments will lead to locking of your cooker. For queries: 0768 473017 or 0113 944491"
+
+    payload = {
+        "customer_id": "12345",
+        "phone_number": phone,
+        "text_message": text_message,
+        "callback_url": "",
+        "country_code": country_code,
+        "channel": "sms",
+        "sender_name": "Ecoa"
+    }
+
+    url = "https://yz3bcznv7k.us-east-1.awsapprunner.com/api/message/send"
+
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print("SMS sent successfully.")
+        else:
+            print("Failed to send SMS. Status code:", response.status_code)
+    except requests.exceptions.RequestException as error:
+        print("Error sending SMS:", error)
 
 def send_expiry_sms(sms_data):
     
@@ -306,12 +345,12 @@ def send_expiry_sms(sms_data):
 
     payload = {
         "customer_id": "12345",
-        "phone_number": "0711438911",
+        "phone_number": phone,
         "text_message": text_message,
         "callback_url": "",
         "country_code": country_code,
         "channel": "sms",
-        "sender_name": "EcoaSupport"
+        "sender_name": "Ecoa"
     }
 
     url = "https://yz3bcznv7k.us-east-1.awsapprunner.com/api/message/send"
