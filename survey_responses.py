@@ -30,7 +30,7 @@ def fetch_data_from_source():
             WHERE customers.mobile_number IS NOT NULL
             ORDER BY customers.created_at DESC
             OFFSET 0
-            LIMIT 100;
+            LIMIT 50;
         """
 
         source_cursor.execute(query)
@@ -48,10 +48,15 @@ def fetch_data_from_source():
         print("Error while connecting to the source database:", error)
 
 def map_responses_to_contact(data):
+
+    # import pdb; pdb.set_trace()
     try:
         # Connect to the target database
         target_conn = psycopg2.connect(target_db_connection_string)
         target_cursor = target_conn.cursor()
+
+        # Create a list to store the rows with appended customer_id
+        rows_with_customer_id = []
 
         # Iterate over the data and map survey responses to customers in the target database
         for row in data:
@@ -64,18 +69,29 @@ def map_responses_to_contact(data):
             result = target_cursor.fetchone()
 
             if result is not None:
+
                 customer_id = result[0]
+                
+                # Create a new list to store the updated row
+                updated_row = list(row)
 
                 # Append the customer_id to the respective row
-                row += (customer_id,)
+                updated_row.append(customer_id)
 
-                import pdb; pdb.set_trace()
+                # Use the updated_row instead of row
+                row = tuple(updated_row)
+
+                rows_with_customer_id.append(row)
+  
             else:
                 print(f"No customer found for mobile number: {mobile_number}")
-
+            
+        # Print the rows with customer_id appended
+        for row in rows_with_customer_id:
+            print("Updated Row:", row)    
             
             # Rest of the code...
-
+        import pdb; pdb.set_trace()
         # Commit the changes to the target database
         target_conn.commit()
 

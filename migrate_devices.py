@@ -18,6 +18,8 @@ def fetch_accounts_from_crm():
         source_conn = psycopg2.connect(crm_db_connection_string)
         source_cursor = source_conn.cursor()
 
+        
+
         # Execute the query to fetch data from the source database
         query = """
             SELECT
@@ -31,8 +33,8 @@ def fetch_accounts_from_crm():
             FROM contact_accounts_product_payplan_v
             WHERE serial_number IS NOT NULL AND serial_number != ' ' AND payplan='131'
             ORDER BY created_at DESC
-            OFFSET 0
-            LIMIT 2;
+            OFFSET 54
+            LIMIT 200;
         """
         source_cursor.execute(query)
 
@@ -98,9 +100,6 @@ def fetch_figures_from_fineract(data):
 
 def calculate_expiry_wallet(modified_data):
 
-    # print("MODIFIED DATA!!!!!!!!",modified_data)
-
-    # import pdb; pdb.set_trace()
     
     results = []
 
@@ -129,7 +128,7 @@ def calculate_expiry_wallet(modified_data):
         else:
             country_code = "+260"
         
-        default_expiry_date = '2023-07-11'
+        default_expiry_date = '2023-07-12'
 
         today = datetime.now().date()
         # date_disbursed = datetime.strptime(disbursed_on_date, '%Y-%m-%d').date()
@@ -216,14 +215,14 @@ def get_excel(results):
         worksheet.append(row)
 
     # Save the workbook
-    workbook.save('output.xlsx')
+    workbook.save('first100.xlsx')
 
 
 def post_to_paygo_db(paygo_data):
 
     print("PAYGO DATA IS!!!!!!!!!!",paygo_data)
 
-    # import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
 
     try:
         for data in paygo_data:
